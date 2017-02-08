@@ -8,7 +8,6 @@
 
 
 struct user_link *user_head = NULL;
-struct user_link *online_head = NULL;
 /********************************
 function: insert_link
 
