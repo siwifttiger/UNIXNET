@@ -26,7 +26,7 @@
 
 
 /*用户结构体的定义*/
-struct User{
+struct user{
 	char name[20];
 	char password[20];
 
