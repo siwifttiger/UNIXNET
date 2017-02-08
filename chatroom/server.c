@@ -522,3 +522,139 @@ int my_private(int confd, struct chat *temp)
 }
 
 
+
+/***************************************************************************
+函    数:    my_public
+功    能:    处理客户端的群聊模式
+传入参数:    confd
+传出参数:    无
+返    回:    无
+***************************************************************************/
+
+
+int my_public(int confd, struct chat *tran_msg)
+{
+	int n_read;
+	int n_write;
+	
+	struct user_link *temp_user = NULL;
+	struct user_link *temp_online  = NULL;
+	
+	    /*判断是否被禁言*/
+   	 if (temp->speak_flag == 0)
+    	{
+        	strcpy(tran_msg->m_name, "Server\n");
+		strcpy(tran_msg->msg, "Sorry ,you can't speak! Plead conect to administrator!");
+	
+		n_write = Write(confd, tran_msg, sizeof(struct chat));  /*发送到指定的聊天对象*/
+		if (n_write <= 0)
+		{   
+	   	 	fputs("private : 读取错误\n", stderr);
+            		temp_online = find_by_confd(confd);
+	    		delete_online(temp_online);
+            		notice(temp_online->user_msg.name, OFFLINE);
+	    		close(confd);
+	    		return -1;
+		}
+
+		return 0;
+	} 
+	
+	debug_msg("my_public:tran_msg->msg: %s\n", tran_msg->msg);
+
+	//send to ever user
+	for(temp_user = online_head;temp != NULL; temp = temp->next)
+	{
+		n_write = Write(temp->confd,tran_msg,sizeof(struct chat));
+		if(n_write <= 0)
+		{
+			fputs("public: 写入错误\n",stderr);
+			temp_online = find_by_confd(temp_user->confd);
+			delete_online(temp_online);
+			notice(temp_online->user_msg.name,OFFLINE);
+			close(temp_user->confd);
+			
+		}
+		debug_msg("my_public:temp_user->confd %d\n",temp_user->confd);
+	}
+	return 0;
+
+}
+
+
+/************************************************************************
+函    数:    scan_online
+功    能:    查看在线用户
+传出参数:    服务器与客户端通信的端口
+传出参数:    无
+返    回:    0: 程序成功执行结果
+*************************************************************************/
+
+int scan_online(int confd)
+{
+	struct user_link *temp_online = NULL;
+	struct user_link *temp_user   = NULL;	
+
+	struct chat tran_msg;
+	memset(&tran_msg,0,sizeof(tran_msg));
+	
+	int n_write;
+	int debug_flag = 0;
+
+	strcpy(tran_msg.m_name,"Server\n");
+	strcpy(tran_msg.msg,"Begin to browser the online user\n");
+	
+	n_write = Write(confd,&tran_msg,sizeof(tran_msg));
+	if(n_write <= 0)
+	{
+		temp_online = find_by_confd(confd);
+		delete_online(temp_online);
+		fputs("scan_online: 读取错误\n",stderr);
+		notice(temp_online->user_msg.name,OFFLINE);
+		close(confd);
+		return -1;
+	}
+
+	memset(&tran_msg,0,sizeof(tran_msg));
+	
+    /*循环将在线用户发送给需要查看在线用户的客户*/
+    for (temp = online_head; temp != NULL; temp = temp->next)
+    {
+        /*将在线用户的名字存进需要传送的缓存区*/
+        strcpy(tran_msg.m_name, "Server\n");
+	
+	strcpy(tran_msg.msg, temp->user_msg.name);
+	
+	/*将用户姓名写入到通信端口*/
+	n_write = Write(confd, &tran_msg, sizeof(tran_msg));  
+        if (n_write <= 0) 
+	{
+            temp_online = find_by_confd(confd);
+	    delete_online(temp_online);
+	    notice(temp_online->user_msg.name, OFFLINE);
+            fputs("scan_online：读取错误\n", stderr); 
+            close(confd);
+	    return -1;
+	}
+        
+	debug_msg("debug_flag = %d\n", debug_flag++);
+        memset(&tran_msg, 0, sizeof(tran_msg));
+    }
+    
+    	strcpy(tran_msg.m_name, "Server\n");     
+	strcpy(tran_msg.msg, "Browser the online user over\n");
+
+    /*将用户姓名写入到通信端口*/
+    n_write = Write(confd, &tran_msg, sizeof(tran_msg));  
+    if (n_write <= 0) 
+    {   
+        close(confd);
+        temp_online = find_by_confd(confd);
+	delete_online(temp_online);
+	notice(temp_online->user_msg.name, OFFLINE);
+        fputs("scan_online：读取错误\n", stderr); 
+        return -1;
+    }
+
+	return 0;
+}
